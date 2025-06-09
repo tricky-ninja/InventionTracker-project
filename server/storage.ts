@@ -80,53 +80,73 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getInventions(filters?: { status?: string; tags?: string[] }): Promise<(Invention & { author: User; _count: { likes: number; dislikes: number; comments: number; files: number } })[]> {
-    let query = db
-      .select({
-        id: inventions.id,
-        title: inventions.title,
-        description: inventions.description,
-        tags: inventions.tags,
-        status: inventions.status,
-        fundingAmount: inventions.fundingAmount,
-        authorId: inventions.authorId,
-        createdAt: inventions.createdAt,
-        updatedAt: inventions.updatedAt,
-        author: users,
-        _count: {
-          likes: sql<number>`COUNT(CASE WHEN ${likes.isLike} = true THEN 1 END)`,
-          dislikes: sql<number>`COUNT(CASE WHEN ${likes.isLike} = false THEN 1 END)`,
-          comments: sql<number>`COUNT(DISTINCT ${comments.id})`,
-          files: sql<number>`COUNT(DISTINCT ${files.id})`,
-        },
-      })
+    // Get all inventions with authors
+    const allInventions = await db
+      .select()
       .from(inventions)
-      .leftJoin(users, eq(inventions.authorId, users.id))
-      .leftJoin(likes, eq(inventions.id, likes.inventionId))
-      .leftJoin(comments, eq(inventions.id, comments.inventionId))
-      .leftJoin(files, eq(inventions.id, files.inventionId))
-      .groupBy(inventions.id, users.id);
+      .innerJoin(users, eq(inventions.authorId, users.id))
+      .orderBy(desc(inventions.createdAt));
 
-    if (filters?.status) {
-      query = query.where(eq(inventions.status, filters.status));
+    const results = [];
+    
+    for (const inv of allInventions) {
+      // Filter by status if provided
+      if (filters?.status && inv.inventions.status !== filters.status) {
+        continue;
+      }
+      
+      // Filter by tags if provided
+      if (filters?.tags && filters.tags.length > 0) {
+        const hasMatchingTag = filters.tags.some(tag => 
+          inv.inventions.tags.includes(tag)
+        );
+        if (!hasMatchingTag) {
+          continue;
+        }
+      }
+
+      // Get counts for this invention
+      const likesData = await db
+        .select({ isLike: likes.isLike })
+        .from(likes)
+        .where(eq(likes.inventionId, inv.inventions.id));
+      
+      const commentsCount = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(comments)
+        .where(eq(comments.inventionId, inv.inventions.id));
+      
+      const filesCount = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(files)
+        .where(eq(files.inventionId, inv.inventions.id));
+
+      const likesCount = likesData.filter(l => l.isLike === true).length;
+      const dislikesCount = likesData.filter(l => l.isLike === false).length;
+
+      results.push({
+        ...inv.inventions,
+        author: inv.users,
+        _count: {
+          likes: likesCount,
+          dislikes: dislikesCount,
+          comments: commentsCount[0]?.count || 0,
+          files: filesCount[0]?.count || 0,
+        },
+      });
     }
 
-    if (filters?.tags && filters.tags.length > 0) {
-      query = query.where(
-        sql`${inventions.tags} && ${filters.tags}`
-      );
-    }
-
-    return await query.orderBy(desc(inventions.createdAt));
+    return results;
   }
 
   async getInvention(id: number): Promise<(Invention & { author: User; files: File[]; comments: (Comment & { author: User })[]; likes: Like[] }) | undefined> {
     const [invention] = await db
       .select()
       .from(inventions)
-      .leftJoin(users, eq(inventions.authorId, users.id))
+      .innerJoin(users, eq(inventions.authorId, users.id))
       .where(eq(inventions.id, id));
 
-    if (!invention) return undefined;
+    if (!invention || !invention.users) return undefined;
 
     const inventionFiles = await db
       .select()
@@ -134,16 +154,9 @@ export class DatabaseStorage implements IStorage {
       .where(eq(files.inventionId, id));
 
     const inventionComments = await db
-      .select({
-        id: comments.id,
-        content: comments.content,
-        inventionId: comments.inventionId,
-        authorId: comments.authorId,
-        createdAt: comments.createdAt,
-        author: users,
-      })
+      .select()
       .from(comments)
-      .leftJoin(users, eq(comments.authorId, users.id))
+      .innerJoin(users, eq(comments.authorId, users.id))
       .where(eq(comments.inventionId, id))
       .orderBy(desc(comments.createdAt));
 
@@ -152,11 +165,17 @@ export class DatabaseStorage implements IStorage {
       .from(likes)
       .where(eq(likes.inventionId, id));
 
+    // Transform comments to include author data
+    const commentsWithAuthors = inventionComments.map(comment => ({
+      ...comment.comments,
+      author: comment.users,
+    }));
+
     return {
       ...invention.inventions,
-      author: invention.users!,
+      author: invention.users,
       files: inventionFiles,
-      comments: inventionComments,
+      comments: commentsWithAuthors,
       likes: inventionLikes,
     };
   }
