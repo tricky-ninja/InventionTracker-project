@@ -94,12 +94,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventions', isAuthenticated, upload.array('files', 10), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const inventionData = insertInventionSchema.parse(req.body);
       
-      // Ensure tags is an array
-      if (typeof inventionData.tags === 'string') {
-        inventionData.tags = inventionData.tags.split(',').map(tag => tag.trim());
+      // Parse tags from JSON string if needed
+      let tags = req.body.tags;
+      if (typeof tags === 'string') {
+        try {
+          tags = JSON.parse(tags);
+        } catch {
+          tags = tags.split(',').map((tag: string) => tag.trim());
+        }
       }
+      
+      const inventionData = insertInventionSchema.parse({
+        ...req.body,
+        tags: tags || [],
+      });
       
       const invention = await storage.createInvention({
         ...inventionData,
