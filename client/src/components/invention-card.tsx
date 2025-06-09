@@ -96,17 +96,17 @@ export default function InventionCard({ invention, currentUser }: InventionCardP
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={invention.author.profileImageUrl || undefined} />
+              <AvatarImage src={invention.author?.profileImageUrl || undefined} />
               <AvatarFallback>
-                {invention.author.firstName?.[0]}{invention.author.lastName?.[0]}
+                {invention.author?.firstName?.[0] || 'U'}{invention.author?.lastName?.[0] || 'U'}
               </AvatarFallback>
             </Avatar>
             <div>
               <h4 className="font-medium text-neutral-800">
-                {invention.author.firstName} {invention.author.lastName}
+                {invention.author?.firstName || 'Unknown'} {invention.author?.lastName || 'User'}
               </h4>
               <p className="text-sm text-neutral-600 flex items-center">
-                {getRoleIcon(invention.author.role)} {getRoleLabel(invention.author.role)}
+                {getRoleIcon(invention.author?.role || 'user')} {getRoleLabel(invention.author?.role || 'user')}
               </p>
             </div>
           </div>
