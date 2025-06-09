@@ -211,19 +211,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCommentsByInvention(inventionId: number): Promise<(Comment & { author: User })[]> {
-    return await db
-      .select({
-        id: comments.id,
-        content: comments.content,
-        inventionId: comments.inventionId,
-        authorId: comments.authorId,
-        createdAt: comments.createdAt,
-        author: users,
-      })
+    const commentsWithUsers = await db
+      .select()
       .from(comments)
-      .leftJoin(users, eq(comments.authorId, users.id))
+      .innerJoin(users, eq(comments.authorId, users.id))
       .where(eq(comments.inventionId, inventionId))
       .orderBy(desc(comments.createdAt));
+
+    return commentsWithUsers.map(item => ({
+      ...item.comments,
+      author: item.users,
+    }));
   }
 
   // Like operations
