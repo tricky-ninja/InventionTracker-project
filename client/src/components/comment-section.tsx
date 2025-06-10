@@ -20,9 +20,11 @@ export default function CommentSection({ inventionId }: CommentSectionProps) {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState("");
 
-  const { data: invention } = useQuery({
+  const { data: inventions } = useQuery({
     queryKey: ["/api/inventions", inventionId.toString()],
   });
+
+  const invention = inventions?.[inventions?.length - inventionId]
 
   const createCommentMutation = useMutation({
     mutationFn: async (content: string) => {

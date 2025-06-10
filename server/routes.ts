@@ -69,6 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const inventions = await storage.getInventions(filters);
       res.json(inventions);
+      console.log(inventions)
     } catch (error) {
       console.error("Error fetching inventions:", error);
       res.status(500).json({ message: "Failed to fetch inventions" });
@@ -79,9 +80,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const invention = await storage.getInvention(id);
-      
+      console.log(id);
       if (!invention) {
-        return res.status(404).json({ message: "Invention not found" });
+        return res.status(404).json({ message: id });
       }
       
       res.json(invention);

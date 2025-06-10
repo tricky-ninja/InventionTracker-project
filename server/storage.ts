@@ -79,60 +79,78 @@ export class DatabaseStorage implements IStorage {
     return newInvention;
   }
 
-  async getInventions(filters?: { status?: string; tags?: string[] }): Promise<(Invention & { author: User; _count: { likes: number; dislikes: number; comments: number; files: number } })[]> {
-    // Get all inventions with authors
+  async getInventions(
+    filters?: { status?: string; tags?: string[] }
+  ): Promise<
+    (
+      Invention & {
+        author: User;
+        files: File[];
+        comments: (Comment & { author: User })[];
+        likes: Like[];
+      }
+    )[]
+  > {
+    // 1. Fetch all inventions with their authors, in descending creation order
     const allInventions = await db
       .select()
       .from(inventions)
       .innerJoin(users, eq(inventions.authorId, users.id))
       .orderBy(desc(inventions.createdAt));
 
-    const results = [];
-    
+    const results: Awaited<
+      ReturnType<typeof getInvention>
+    >[] = [];
+
     for (const inv of allInventions) {
-      // Filter by status if provided
-      if (filters?.status && inv.inventions.status !== filters.status) {
+      const invData = inv.inventions;
+
+      // 2. Apply optional status & tag filters
+      if (filters?.status && invData.status !== filters.status) {
         continue;
       }
-      
-      // Filter by tags if provided
-      if (filters?.tags && filters.tags.length > 0) {
-        const hasMatchingTag = filters.tags.some(tag => 
-          inv.inventions.tags.includes(tag)
-        );
-        if (!hasMatchingTag) {
-          continue;
-        }
+      if (
+        filters?.tags &&
+        filters.tags.length > 0 &&
+        !filters.tags.some((tag) => invData.tags.includes(tag))
+      ) {
+        continue;
       }
 
-      // Get counts for this invention
-      const likesData = await db
-        .select({ isLike: likes.isLike })
-        .from(likes)
-        .where(eq(likes.inventionId, inv.inventions.id));
-      
-      const commentsCount = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(comments)
-        .where(eq(comments.inventionId, inv.inventions.id));
-      
-      const filesCount = await db
-        .select({ count: sql<number>`COUNT(*)` })
+      const invId = invData.id;
+
+      // 3. Fetch files
+      const inventionFiles = await db
+        .select()
         .from(files)
-        .where(eq(files.inventionId, inv.inventions.id));
+        .where(eq(files.inventionId, invId));
 
-      const likesCount = likesData.filter(l => l.isLike === true).length;
-      const dislikesCount = likesData.filter(l => l.isLike === false).length;
+      // 4. Fetch comments + author, sorted by newest first
+      const inventionComments = await db
+        .select()
+        .from(comments)
+        .innerJoin(users, eq(comments.authorId, users.id))
+        .where(eq(comments.inventionId, invId))
+        .orderBy(desc(comments.createdAt));
 
+      const commentsWithAuthors = inventionComments.map((row) => ({
+        ...row.comments,
+        author: row.users,
+      }));
+
+      // 5. Fetch likes
+      const inventionLikes = await db
+        .select()
+        .from(likes)
+        .where(eq(likes.inventionId, invId));
+
+      // 6. Assemble full-detail object
       results.push({
-        ...inv.inventions,
+        ...invData,
         author: inv.users,
-        _count: {
-          likes: likesCount,
-          dislikes: dislikesCount,
-          comments: commentsCount[0]?.count || 0,
-          files: filesCount[0]?.count || 0,
-        },
+        files: inventionFiles,
+        comments: commentsWithAuthors,
+        likes: inventionLikes,
       });
     }
 

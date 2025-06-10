@@ -41,6 +41,8 @@ export default function InventionCard({ invention, currentUser }: InventionCardP
     }
   };
 
+  
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "approved":
@@ -88,6 +90,9 @@ export default function InventionCard({ invention, currentUser }: InventionCardP
         return 'Student Researcher';
     }
   };
+
+  const likesCount = invention.likes?.filter(like => like.isLike).length || 0;
+  const dislikesCount = invention.likes?.filter(like => !like.isLike).length || 0;
 
   return (
     <Card className="border border-neutral-200 hover:shadow-md transition-shadow">
@@ -149,11 +154,11 @@ export default function InventionCard({ invention, currentUser }: InventionCardP
         </div>
 
         {/* Files */}
-        {invention._count.files > 0 && (
+        {invention.files > 0 && (
           <div className="flex items-center space-x-4 mb-4 text-sm text-neutral-600">
             <div className="flex items-center space-x-2">
               <FileText className="h-4 w-4 text-red-500" />
-              <span>{invention._count.files} files</span>
+              <span>{invention.files.length} files</span>
             </div>
           </div>
         )}
@@ -190,15 +195,15 @@ export default function InventionCard({ invention, currentUser }: InventionCardP
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2 text-neutral-500">
               <ThumbsUp className="h-4 w-4" />
-              <span className="text-sm font-medium">{invention._count.likes}</span>
+              <span className="text-sm font-medium">{likesCount}</span>
             </div>
             <div className="flex items-center space-x-2 text-neutral-500">
               <ThumbsDown className="h-4 w-4" />
-              <span className="text-sm font-medium">{invention._count.dislikes}</span>
+              <span className="text-sm font-medium">{dislikesCount}</span>
             </div>
             <div className="flex items-center space-x-2 text-neutral-500">
               <MessageCircle className="h-4 w-4" />
-              <span className="text-sm font-medium">{invention._count.comments} comments</span>
+              <span className="text-sm font-medium">{invention.comments.length} comments</span>
             </div>
           </div>
           <div className="flex items-center space-x-2">

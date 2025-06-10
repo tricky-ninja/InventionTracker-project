@@ -29,10 +29,12 @@ export default function InventionDetails() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: invention, isLoading } = useQuery({
+  const { data: inventions, isLoading } = useQuery({
     queryKey: ["/api/inventions", id],
     enabled: !!id,
   });
+
+  const invention = inventions?.[inventions?.length - id]
 
   const { data: userLike } = useQuery({
     queryKey: ["/api/inventions", id, "user-like"],
